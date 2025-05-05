@@ -53,8 +53,41 @@ def load_model(path):
         raise
 
 def preprocess_audio(file_path, sr=16000, duration=5):
+    """
+    Process audio file to match exactly how it was done during training
+    """
+    # Match the exact parameters from your training notebook
     y, _ = librosa.load(file_path, sr=sr, duration=duration)
-    mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
+    
+    # Calculate the expected length based on duration
+    target_length = int(sr * duration)
+    
+    # Ensure consistent length
+    if len(y) > target_length:
+        # If longer, take a segment (middle segment to avoid silence at beginning/end)
+        start = (len(y) - target_length) // 2
+        y = y[start:start + target_length]
+    else:
+        # If shorter, pad with zeros
+        y = np.pad(y, (0, max(0, target_length - len(y))))
+    
+    # Use the same spectrogram parameters as in training
+    mel = librosa.feature.melspectrogram(
+        y=y, 
+        sr=sr,
+        n_fft=1024,  # From your CONFIG
+        hop_length=512,  # From your CONFIG
+        n_mels=128  # From your CONFIG
+    )
+    
+    # Convert to dB scale
     mel_db = librosa.power_to_db(mel, ref=np.max)
-    mel_db = mel_db[np.newaxis, np.newaxis, ...]  # (1, 1, freq, time)
+    
+    # Apply the same normalization as in training
+    mel_db = (mel_db - mel_db.mean()) / (mel_db.std() + 1e-8)
+    
+    # Reshape to match the input format expected by the model
+    # Adding batch and channel dimensions: [1, 1, freq, time]
+    mel_db = mel_db[np.newaxis, np.newaxis, ...]
+    
     return torch.tensor(mel_db).float()

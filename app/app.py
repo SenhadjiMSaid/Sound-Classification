@@ -5,6 +5,7 @@ st.set_page_config(page_title="Urban Sound Classification", page_icon="🎧")
 import torch
 import os
 import sys
+import matplotlib.pyplot as plt
 
 # Import local modules
 try:
@@ -63,8 +64,35 @@ if uploaded_file is not None:
             try:
                 input_tensor = preprocess_audio("temp.wav")
                 
+                # Add debug info about the tensor
+                with st.expander("Debug: Input Tensor Info"):
+                    st.write(f"Tensor shape: {input_tensor.shape}")
+                    st.write(f"Tensor type: {input_tensor.dtype}")
+                    st.write(f"Tensor min: {input_tensor.min().item():.4f}, max: {input_tensor.max().item():.4f}")
+                    st.write(f"Tensor mean: {input_tensor.mean().item():.4f}, std: {input_tensor.std().item():.4f}")
+                    
+                    # Display the spectrogram
+                    fig, ax = plt.subplots(figsize=(10, 4))
+                    ax.imshow(input_tensor[0, 0].numpy(), aspect='auto', origin='lower', cmap='inferno')
+                    ax.set_title("Input Mel Spectrogram")
+                    ax.set_ylabel("Mel Frequency Bin")
+                    ax.set_xlabel("Time Frame")
+                    st.pyplot(fig)
+                
+                # Ensure model is in evaluation mode
+                model.eval()
+                
                 with torch.no_grad():
+                    # Get raw logits
                     output = model(input_tensor)
+                    
+                    # Show raw model output
+                    with st.expander("Debug: Model Output"):
+                        st.write("Raw model output (logits):")
+                        for i, (cls, val) in enumerate(zip(CLASSES, output[0].tolist())):
+                            st.write(f"{cls}: {val:.4f}")
+                    
+                    # Calculate softmax probabilities
                     probabilities = torch.nn.functional.softmax(output, dim=1)[0]
                     predicted_class_idx = output.argmax(dim=1).item()
                     predicted_class = CLASSES[predicted_class_idx]
